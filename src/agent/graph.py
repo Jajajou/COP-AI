@@ -1,7 +1,7 @@
 import operator
 from typing import Annotated, Sequence, TypedDict, Literal
 
-from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from pydantic import BaseModel
@@ -23,10 +23,11 @@ from src.agent.tools.knowledge import add_knowledge, query_knowledge
 from src.agent.config import config
 
 # --- 1. LLM Setup ---
-# Model lớn cho các Sĩ quan xử lý chuyên sâu
-llm_agent = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile", api_key=config.GROQ_API_KEY)
-# Model nhỏ, cực nhanh cho Supervisor để tránh Rate Limit
-llm_router = ChatGroq(temperature=0, model_name="llama-3.1-8b-instant", api_key=config.GROQ_API_KEY)
+# Sử dụng Ollama chạy nội bộ (Local LLM)
+# Model 3b cho các Sĩ quan để đủ thông minh xử lý công việc
+llm_agent = ChatOllama(model="qwen2.5:3b", temperature=0)
+# Model 1.5b cực nhẹ cho Supervisor để điều hướng nhanh
+llm_router = ChatOllama(model="qwen2.5:1.5b", temperature=0)
 
 # --- 2. Define Agents ---
 
