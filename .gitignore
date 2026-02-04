@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment secrets
+.env
+
+# Database data
+postgres_data/
+
+# ChromaDB knowledge store
+knowledge_db/
+
+.claude/
+CLAUDE.md
+GEMINI.md
