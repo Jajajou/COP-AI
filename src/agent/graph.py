@@ -1,8 +1,7 @@
 import operator
 from typing import Annotated, Sequence, TypedDict, Literal
 
-from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
+from langchain_mistralai import ChatMistralAI
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from pydantic import BaseModel
@@ -24,10 +23,9 @@ from src.agent.tools.knowledge import add_knowledge, query_knowledge
 from src.agent.config import config
 
 # --- 1. LLM Setup ---
-# [LOCAL OPTIMIZED CONFIG]
-# Llama 3.2 xử lý Tool Calling tốt hơn Qwen ở kích thước nhỏ
-llm_agent = ChatOllama(model="llama3.2:3b", temperature=0)
-llm_router = ChatOllama(model="llama3.2:1b", temperature=0)
+# [MISTRAL AI - Free Experiment Tier]
+llm_agent = ChatMistralAI(model="mistral-small-latest", temperature=0)
+llm_router = ChatMistralAI(model="mistral-small-latest", temperature=0)
 
 # --- 2. Define Agents ---
 

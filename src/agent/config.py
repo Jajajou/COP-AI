@@ -5,14 +5,14 @@ load_dotenv()
 
 class Config:
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://coffee_admin:coffee_password@localhost:5440/coffee_shop")
 
     @classmethod
     def validate(cls):
         if not cls.TELEGRAM_TOKEN:
             raise ValueError("TELEGRAM_TOKEN is missing!")
-        if not cls.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY is missing!")
+        if not cls.MISTRAL_API_KEY:
+            raise ValueError("MISTRAL_API_KEY is missing!")
 
 config = Config()
