@@ -1,6 +1,7 @@
 import logging
 
 from langchain_core.tools import tool
+from sqlalchemy import func
 from src.agent.clients.postgres import SessionLocal
 from src.agent.domain.models import MenuItem, InventoryItem, Sale, Recipe, Order, OrderItem, InventoryLog
 
@@ -12,18 +13,27 @@ def sell_menu_item(item_name: str, quantity: int = 1, payment_method: str = "cas
     """Records a sale of a menu item. Auto-deducts ingredients based on recipe (back-flushing).
     Creates an Order record for tracking. Payment methods: cash, card, transfer."""
     if quantity <= 0:
-        return "Error: Quantity must be a positive number."
+        return "Lỗi: Số lượng phải là số dương."
     if payment_method not in ("cash", "card", "transfer"):
-        return "Error: Payment method must be 'cash', 'card', or 'transfer'."
+        return "Lỗi: Phương thức thanh toán phải là 'cash' (tiền mặt), 'card' (thẻ), hoặc 'transfer' (chuyển khoản)."
 
     db = SessionLocal()
     try:
+        # Tìm kiếm không phân biệt hoa thường và loại bỏ khoảng trắng thừa
         menu_item = db.query(MenuItem).filter(
-            MenuItem.name == item_name,
+            func.lower(MenuItem.name) == item_name.lower().strip(),
             MenuItem.is_active == True
         ).first()
+        
         if not menu_item:
-            return f"Error: '{item_name}' is not on the menu or is inactive."
+            # Thử tìm kiếm theo kiểu chứa từ khóa (LIKE) nếu không khớp tuyệt đối
+            menu_item = db.query(MenuItem).filter(
+                MenuItem.name.ilike(f"%{item_name.strip()}%"),
+                MenuItem.is_active == True
+            ).first()
+
+        if not menu_item:
+            return f"Lỗi: '{item_name}' không có trong menu hoặc đang tạm ngưng bán. Sếp hãy dùng tool `get_menu` để xem tên chính xác."
 
         recipes = db.query(Recipe).filter(Recipe.product_id == menu_item.id).all()
 
@@ -35,12 +45,12 @@ def sell_menu_item(item_name: str, quantity: int = 1, payment_method: str = "cas
                     InventoryItem.id == r.ingredient_id
                 ).with_for_update().first()
                 if not ingredient:
-                    return f"Error: Recipe ingredient (ID {r.ingredient_id}) not found in inventory."
+                    return f"Lỗi: Không tìm thấy nguyên liệu (ID {r.ingredient_id}) trong kho."
                 needed = r.amount_needed * quantity
                 if ingredient.quantity < needed:
                     return (
-                        f"Error: Insufficient '{ingredient.name}'. "
-                        f"Need {needed} {ingredient.unit}, have {ingredient.quantity} {ingredient.unit}."
+                        f"Lỗi: Không đủ '{ingredient.name}'. "
+                        f"Cần {needed} {ingredient.unit}, hiện có {ingredient.quantity} {ingredient.unit}."
                     )
                 ingredient_deductions.append((ingredient, needed))
 
@@ -73,14 +83,14 @@ def sell_menu_item(item_name: str, quantity: int = 1, payment_method: str = "cas
         db.add(sale)
         db.commit()
 
-        result = f"Sold {quantity}x {item_name} for ${total} (Order #{order.id}, {payment_method})."
+        result = f"Đã bán {quantity}x {item_name}. Tổng tiền: {int(total):,} VNĐ (Đơn #{order.id}, {payment_method})."
         if deducted_items:
-            result += "\nIngredients deducted:\n" + "\n".join(f"  - {d}" for d in deducted_items)
+            result += "\nNguyên liệu đã trừ:\n" + "\n".join(f"  - {d}" for d in deducted_items)
         return result
     except Exception as e:
         db.rollback()
         logger.error(f"Error in sell_menu_item: {e}", exc_info=True)
-        return "An error occurred while processing the sale. Please try again."
+        return "Đã xảy ra lỗi khi xử lý bán hàng. Vui lòng thử lại."
     finally:
         db.close()
 
@@ -90,7 +100,7 @@ def sell_inventory_item(item_name: str, quantity: float):
     """Sells a raw inventory item by weight/quantity (e.g., selling loose coffee beans).
     Deducts stock and logs the change automatically."""
     if quantity <= 0:
-        return "Error: Quantity must be a positive number."
+        return "Lỗi: Số lượng phải là số dương."
 
     db = SessionLocal()
     try:
@@ -98,10 +108,10 @@ def sell_inventory_item(item_name: str, quantity: float):
             InventoryItem.name == item_name
         ).with_for_update().first()
         if not item:
-            return f"Error: '{item_name}' not found in inventory."
+            return f"Lỗi: Không tìm thấy vật phẩm '{item_name}' trong kho."
 
         if item.quantity < quantity:
-            return f"Error: Insufficient stock. Only {item.quantity} {item.unit} available."
+            return f"Lỗi: Không đủ hàng trong kho. Chỉ còn {item.quantity} {item.unit}."
 
         total = item.unit_price * quantity
         item.quantity -= quantity
@@ -117,13 +127,13 @@ def sell_inventory_item(item_name: str, quantity: float):
         db.add(sale)
         db.commit()
         return (
-            f"Sold {quantity} {item.unit} of {item_name} for ${total}. "
-            f"Remaining stock: {item.quantity} {item.unit}."
+            f"Đã bán {quantity} {item.unit} {item_name} với giá {int(total):,} VNĐ. "
+            f"Kho còn lại: {item.quantity} {item.unit}."
         )
     except Exception as e:
         db.rollback()
         logger.error(f"Error in sell_inventory_item: {e}", exc_info=True)
-        return "An error occurred while processing the sale. Please try again."
+        return "Đã xảy ra lỗi khi xử lý bán kho. Vui lòng thử lại."
     finally:
         db.close()
 
@@ -149,13 +159,13 @@ def quick_sale(item_description: str, amount: float):
         db.commit()
         
         if amount >= 0:
-            return f"Quick sale recorded: '{item_description}' for {amount} VND."
+            return f"Đã ghi nhận bán nhanh: '{item_description}' giá {int(amount):,} VNĐ."
         else:
-            return f"Refund/Deduction recorded: '{item_description}' for {amount} VND."
+            return f"Đã ghi nhận hoàn tiền/giảm trừ: '{item_description}' số tiền {int(amount):,} VNĐ."
             
     except Exception as e:
         db.rollback()
         logger.error(f"Error in quick_sale: {e}", exc_info=True)
-        return "An error occurred while processing the quick sale."
+        return "Đã xảy ra lỗi khi xử lý bán nhanh."
     finally:
         db.close()

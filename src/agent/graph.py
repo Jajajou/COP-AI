@@ -1,9 +1,10 @@
 import operator
 from typing import Annotated, Sequence, TypedDict, Literal
 
-from langchain_mistralai import ChatMistralAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from pydantic import BaseModel
 
 from langgraph.graph import StateGraph, END
@@ -23,13 +24,28 @@ from src.agent.tools.knowledge import add_knowledge, query_knowledge
 from src.agent.config import config
 
 # --- 1. LLM Setup ---
-# [MISTRAL AI - Free Experiment Tier]
-llm_agent = ChatMistralAI(model="mistral-small-latest", temperature=0)
-llm_router = ChatMistralAI(model="mistral-small-latest", temperature=0)
+rate_limiter = InMemoryRateLimiter(
+    requests_per_second=0.33, 
+    check_every_n_seconds=0.1, 
+    max_bucket_size=1
+)
+
+# Agent thực thi: Sử dụng Gemini 2.5 Flash để phản hồi nhanh
+llm_agent = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash", 
+    temperature=0, 
+    rate_limiter=rate_limiter
+)
+
+# Supervisor: Sử dụng Gemini 2.5 Pro để điều phối chính xác tuyệt đối
+llm_router = ChatGoogleGenerativeAI(
+    model="gemini-2.5-pro", 
+    temperature=0, 
+    rate_limiter=rate_limiter
+)
+
 
 # --- 2. Define Agents ---
-
-
 def create_agent(llm, tools, system_prompt: str):
     return create_react_agent(llm, tools, prompt=system_prompt)
 
@@ -60,11 +76,14 @@ menu_agent = create_agent(
 sales_agent = create_agent(
     llm_agent,
     [sell_menu_item, sell_inventory_item, quick_sale, get_menu, list_inventory],
-    "Bạn là trợ lí bán hàng (Sales Officer). Bạn xử lý tiền nong.\n"
+    "Bạn là trợ lí bán hàng (Sales Officer) thông minh của Nhà Cọp.\n"
     "QUY TẮC BẮT BUỘC:\n"
-    "1. Khi bán món trong menu, PHẢI gọi `sell_menu_item`. Hệ thống sẽ tự động trừ kho.\n"
-    "2. Nếu bán món lạ, PHẢI gọi `quick_sale`.\n"
-    "KHÔNG ĐƯỢC trả lời 'đã bán' nếu bạn chưa gọi tool thành công."
+    "1. Khi Sếp order món, bạn PHẢI gọi tool `get_menu` trước để kiểm tra tên món chính xác trong hệ thống.\n"
+    "2. Tự động ánh xạ từ viết tắt: 'cf' -> 'Cafe', 'cf đen' -> 'Cafe Đen', 'đen đá' -> 'Cafe Đen'.\n"
+    "3. Nếu Sếp nói tên món chung chung (VD: 'kefir sữa'), hãy tìm trong menu món nào khớp nhất (VD: 'Kefir Sữa Nguyên Vị').\n"
+    "4. Khi bán món trong menu, PHẢI gọi `sell_menu_item`. Hệ thống sẽ tự động trừ kho.\n"
+    "5. KHÔNG ĐƯỢC trả lời 'đã bán' nếu bạn chưa gọi tool thành công.\n"
+    "Hãy luôn thân thiện và chuyên nghiệp."
 )
 
 report_agent = create_agent(
@@ -90,19 +109,32 @@ members = ["Inventory", "Sales", "Knowledge", "Menu", "Report"]
 options = members + ["FINISH"]
 
 system_prompt = (
-    "Bạn là **Trợ lý Cafe (Cop Coffee Assistant)**, người Giám sát tận tụy của Nhà Cọp.\n"
-    "Nhiệm vụ: Phục vụ Sếp (Lân & Linh) và Bảo vệ sự vận hành trơn tru của quán bằng cách điều phối đúng trợ lí.\n"
-    "Đội ngũ của bạn:\n"
-    " - Inventory: Quản lý kho, nhập/xuất, quy đổi đơn vị g/ml.\n"
-    " - Menu: Quản lý món & công thức pha chế.\n"
-    " - Sales: Bán hàng, thu tiền, bán nhanh/quick sale.\n"
-    " - Report: Báo cáo doanh thu, reset doanh thu, cảnh báo kho.\n"
-    " - Knowledge: Thông tin quán, pass wifi, chuyện thú cưng, nội quy VÀ CHÀO HỎI/TÂM SỰ.\n"
-    "QUY ĐỊNH BẮT BUỘC:\n"
-    "1. CHỈ được trả về tên của Trợ lí hoặc 'FINISH' dưới dạng cấu trúc dữ liệu.\n"
-    "2. TUYỆT ĐỐI KHÔNG được trả lời trực tiếp tin nhắn của người dùng (không chào hỏi, không chém gió).\n"
-    "3. Mọi tin nhắn chào hỏi, khen ngợi, hoặc hỏi thông tin chung PHẢI điều động 'Knowledge' xử lý.\n"
-    "4. Nếu nhiệm vụ đã hoàn tất, hãy chọn 'FINISH'."
+    "Bạn là **Trợ lý Cafe (Cop Coffee Assistant)**, người Giám sát thông minh của Nhà Cọp.\n"
+    "Nhiệm vụ: Phân tích yêu cầu của Sếp và ĐIỀU PHỐI đúng chuyên viên.\n\n"
+    
+    "DANH SÁCH CHUYÊN VIÊN:\n"
+    "1. **Report** (Báo cáo & Tiền nong):\n"
+    "   - Chuyên trách: Doanh thu, tiền bán được, thống kê, món chạy nhất, lịch sử bán hàng.\n"
+    "   - Ví dụ: 'Doanh thu hôm nay', 'Nay bán được nhiêu tiền', 'Top món chạy'.\n"
+    "2. **Sales** (Bán hàng):\n"
+    "   - Chuyên trách: Ghi đơn, bán món, tính tiền, order mới.\n"
+    "   - Ví dụ: 'Bán 1 cf đen', 'Lên đơn 2 bạc xỉu', 'Khách mua 1 kefir'.\n"
+    "3. **Inventory** (Kho hàng):\n"
+    "   - Chuyên trách: Kiểm tồn kho, nhập hàng, số lượng nguyên liệu.\n"
+    "   - Ví dụ: 'Kiểm kho cafe', 'Còn bao nhiêu đường', 'Nhập thêm sữa'.\n"
+    "4. **Menu** (Thực đơn):\n"
+    "   - Chuyên trách: Danh sách món, giá cả, công thức pha chế.\n"
+    "   - Ví dụ: 'Menu có gì', 'Giá cafe bao nhiêu', 'Công thức món này'.\n"
+    "5. **Knowledge** (Kiến thức & Chào hỏi):\n"
+    "   - Chuyên trách: Pass wifi, địa chỉ, chuyện tán gẫu, chào hỏi xã giao.\n"
+    "   - Ví dụ: 'Alo', 'Hi', 'Wifi là gì', 'Quán ở đâu'.\n\n"
+
+    "QUY TẮC BẮT BUỘC:\n"
+    "1. CHỈ được trả về tên chuyên viên hoặc 'FINISH'.\n"
+    "2. Nếu hỏi về TIỀN/DOANH THU -> PHẢI chọn **Report**.\n"
+    "3. Nếu là hành động BÁN/MUA -> Chọn **Sales**.\n"
+    "4. Tuyệt đối không tự trả lời tin nhắn của Sếp.\n"
+    "5. Nếu đã hoàn thành nhiệm vụ -> Chọn **FINISH**."
 )
 
 
@@ -116,8 +148,8 @@ prompt = ChatPromptTemplate.from_messages(
         MessagesPlaceholder(variable_name="messages"),
         (
             "system",
-            "Given the conversation above, who should act next? "
-            "Or should we FINISH? Select one of: {options}",
+            "Dựa trên cuộc hội thoại trên, ai nên là người thực hiện bước tiếp theo? "
+            "Hoặc chúng ta đã hoàn thành (FINISH)? Chọn một trong số: {options}",
         ),
     ]
 ).partial(options=str(options), members=", ".join(members))
@@ -125,11 +157,15 @@ prompt = ChatPromptTemplate.from_messages(
 
 import json
 import re
+import asyncio
 
-def supervisor_node(state):
+async def supervisor_node(state):
+    # Cưỡng bức nghỉ 1.5 giây để tránh lỗi 429 RPM dồn dập
+    await asyncio.sleep(1.5)
+    
     # Dùng model nhỏ để điều phối cho nhanh và tiết kiệm rate limit
     messages = state["messages"] + [
-        ("system", "BẮT BUỘC: Chỉ trả về JSON theo định dạng: {\"next\": \"WorkerName\"}. Không giải thích gì thêm.")
+        ("system", "BẮT BUỘC: Chỉ trả về JSON theo định dạng: {\"next\": \"WorkerName\"}. Tuyệt đối không giải thích hoặc thêm văn bản thừa.")
     ]
     
     try:

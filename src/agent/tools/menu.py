@@ -5,18 +5,18 @@ from src.agent.domain.models import MenuItem
 
 
 @tool
-def add_menu_item(name: str, price: float, description: str = "", category: str = "General"):
+def add_menu_item(name: str, price: float, description: str = "", category: str = "Chung"):
     """Adds a new item to the selling menu with optional category.
-    Categories: 'Hot Drinks', 'Cold Drinks', 'Food', 'General', etc."""
+    Categories: 'Đồ uống nóng', 'Đồ uống lạnh', 'Thức ăn', 'Chung', etc."""
     db = SessionLocal()
     try:
         item = MenuItem(name=name, price=price, description=description, category=category)
         db.add(item)
         db.commit()
-        return f"Added to menu: {name} - ${price} [{category}]"
+        return f"Đã thêm vào menu: {name} - {int(price):,} VNĐ [{category}]"
     except IntegrityError:
         db.rollback()
-        return f"Error: Menu item '{name}' already exists."
+        return f"Lỗi: Món '{name}' đã tồn tại trong menu."
     finally:
         db.close()
 
@@ -31,11 +31,11 @@ def get_menu(category: str = ""):
             query = query.filter(MenuItem.category == category)
         items = query.all()
         if not items:
-            return "No menu items found." if category else "Menu is empty."
+            return "Không tìm thấy món nào." if category else "Menu hiện đang trống."
         lines = []
         for i in items:
-            desc = i.description or "No description"
-            lines.append(f"- {i.name}: ${i.price} [{i.category}] ({desc})")
+            desc = i.description or "Không có mô tả"
+            lines.append(f"- {i.name}: {int(i.price):,} VNĐ [{i.category}] ({desc})")
         return "\n".join(lines)
     finally:
         db.close()
@@ -48,7 +48,7 @@ def update_menu_item(item_name: str, new_name: str = "", new_price: float = -1, 
     try:
         item = db.query(MenuItem).filter(MenuItem.name == item_name).first()
         if not item:
-            return f"Menu item '{item_name}' not found."
+            return f"Không tìm thấy món '{item_name}' trong menu."
         if new_name:
             item.name = new_name
         if new_price >= 0:
@@ -59,10 +59,10 @@ def update_menu_item(item_name: str, new_name: str = "", new_price: float = -1, 
             item.category = new_category
         db.commit()
         display_name = new_name if new_name else item_name
-        return f"Updated menu item '{display_name}' successfully."
+        return f"Đã cập nhật món '{display_name}' thành công."
     except IntegrityError:
         db.rollback()
-        return f"Error: Menu item name '{new_name}' already exists."
+        return f"Lỗi: Tên món '{new_name}' đã tồn tại."
     finally:
         db.close()
 
@@ -74,10 +74,10 @@ def delete_menu_item(item_name: str):
     try:
         item = db.query(MenuItem).filter(MenuItem.name == item_name).first()
         if not item:
-            return f"Menu item '{item_name}' not found."
+            return f"Không tìm thấy món '{item_name}' trong menu."
         db.delete(item)
         db.commit()
-        return f"Deleted '{item_name}' from menu."
+        return f"Đã xóa món '{item_name}' khỏi menu."
     finally:
         db.close()
 
@@ -89,10 +89,10 @@ def toggle_menu_item(item_name: str):
     try:
         item = db.query(MenuItem).filter(MenuItem.name == item_name).first()
         if not item:
-            return f"Menu item '{item_name}' not found."
+            return f"Không tìm thấy món '{item_name}' trong menu."
         item.is_active = not item.is_active
         db.commit()
-        status = "active" if item.is_active else "inactive"
-        return f"'{item_name}' is now {status}."
+        status = "đang bán" if item.is_active else "tạm ngưng bán"
+        return f"Món '{item_name}' hiện tại {status}."
     finally:
         db.close()

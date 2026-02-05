@@ -11,10 +11,10 @@ def add_recipe(product_name: str, ingredient_name: str, amount_needed: float):
     try:
         product = db.query(MenuItem).filter(MenuItem.name == product_name).first()
         if not product:
-            return f"Error: Menu item '{product_name}' not found."
+            return f"Lỗi: Không tìm thấy món '{product_name}' trong menu."
         ingredient = db.query(InventoryItem).filter(InventoryItem.name == ingredient_name).first()
         if not ingredient:
-            return f"Error: Inventory item '{ingredient_name}' not found."
+            return f"Lỗi: Không tìm thấy nguyên liệu '{ingredient_name}' trong kho."
         existing = db.query(Recipe).filter(
             Recipe.product_id == product.id,
             Recipe.ingredient_id == ingredient.id
@@ -22,11 +22,11 @@ def add_recipe(product_name: str, ingredient_name: str, amount_needed: float):
         if existing:
             existing.amount_needed = amount_needed
             db.commit()
-            return f"Updated recipe: {product_name} now uses {amount_needed} {ingredient.unit} of {ingredient_name}."
+            return f"Đã cập nhật công thức: {product_name} hiện dùng {amount_needed} {ingredient.unit} {ingredient_name}."
         recipe = Recipe(product_id=product.id, ingredient_id=ingredient.id, amount_needed=amount_needed)
         db.add(recipe)
         db.commit()
-        return f"Recipe added: {product_name} uses {amount_needed} {ingredient.unit} of {ingredient_name}."
+        return f"Đã thêm công thức: {product_name} sử dụng {amount_needed} {ingredient.unit} {ingredient_name}."
     finally:
         db.close()
 
@@ -38,11 +38,11 @@ def get_recipe(product_name: str):
     try:
         product = db.query(MenuItem).filter(MenuItem.name == product_name).first()
         if not product:
-            return f"Menu item '{product_name}' not found."
+            return f"Không tìm thấy món '{product_name}' trong menu."
         recipes = db.query(Recipe).filter(Recipe.product_id == product.id).all()
         if not recipes:
-            return f"No recipe defined for '{product_name}'."
-        lines = [f"Recipe for {product_name}:"]
+            return f"Chưa có công thức cho món '{product_name}'."
+        lines = [f"Công thức cho món {product_name}:"]
         for r in recipes:
             ingredient = db.query(InventoryItem).filter(InventoryItem.id == r.ingredient_id).first()
             if ingredient:
@@ -59,19 +59,19 @@ def update_recipe(product_name: str, ingredient_name: str, new_amount: float):
     try:
         product = db.query(MenuItem).filter(MenuItem.name == product_name).first()
         if not product:
-            return f"Menu item '{product_name}' not found."
+            return f"Không tìm thấy món '{product_name}' trong menu."
         ingredient = db.query(InventoryItem).filter(InventoryItem.name == ingredient_name).first()
         if not ingredient:
-            return f"Inventory item '{ingredient_name}' not found."
+            return f"Không tìm thấy nguyên liệu '{ingredient_name}' trong kho."
         recipe = db.query(Recipe).filter(
             Recipe.product_id == product.id,
             Recipe.ingredient_id == ingredient.id
         ).first()
         if not recipe:
-            return f"No recipe entry for '{ingredient_name}' in '{product_name}'."
+            return f"Món '{product_name}' chưa có nguyên liệu '{ingredient_name}' trong công thức."
         recipe.amount_needed = new_amount
         db.commit()
-        return f"Updated: {product_name} now uses {new_amount} {ingredient.unit} of {ingredient_name}."
+        return f"Đã cập nhật: {product_name} hiện dùng {new_amount} {ingredient.unit} {ingredient_name}."
     finally:
         db.close()
 
@@ -83,18 +83,18 @@ def delete_recipe(product_name: str, ingredient_name: str):
     try:
         product = db.query(MenuItem).filter(MenuItem.name == product_name).first()
         if not product:
-            return f"Menu item '{product_name}' not found."
+            return f"Không tìm thấy món '{product_name}' trong menu."
         ingredient = db.query(InventoryItem).filter(InventoryItem.name == ingredient_name).first()
         if not ingredient:
-            return f"Inventory item '{ingredient_name}' not found."
+            return f"Không tìm thấy nguyên liệu '{ingredient_name}' trong kho."
         recipe = db.query(Recipe).filter(
             Recipe.product_id == product.id,
             Recipe.ingredient_id == ingredient.id
         ).first()
         if not recipe:
-            return f"No recipe entry found."
+            return f"Không tìm thấy dữ liệu công thức."
         db.delete(recipe)
         db.commit()
-        return f"Removed {ingredient_name} from {product_name}'s recipe."
+        return f"Đã xóa {ingredient_name} khỏi công thức món {product_name}."
     finally:
         db.close()

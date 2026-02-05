@@ -12,10 +12,10 @@ def add_inventory_item(name: str, unit: str, unit_price: float, min_alert: float
         item = InventoryItem(name=name, unit=unit, unit_price=unit_price, min_alert=min_alert)
         db.add(item)
         db.commit()
-        return f"Added {name} ({unit}) at ${unit_price}/{unit}, min alert: {min_alert} {unit}."
+        return f"Đã thêm {name} ({unit}) với giá {int(unit_price):,} VNĐ/{unit}, cảnh báo khi dưới: {min_alert} {unit}."
     except IntegrityError:
         db.rollback()
-        return f"Error: Item '{name}' already exists."
+        return f"Lỗi: Vật phẩm '{name}' đã tồn tại."
     finally:
         db.close()
 
@@ -27,8 +27,8 @@ def check_stock(item_name: str):
     try:
         item = db.query(InventoryItem).filter(InventoryItem.name == item_name).first()
         if not item:
-            return f"Item '{item_name}' not found in inventory."
-        alert_status = " [LOW STOCK]" if item.min_alert > 0 and item.quantity <= item.min_alert else ""
+            return f"Không tìm thấy vật phẩm '{item_name}' trong kho."
+        alert_status = " [SẮP HẾT HÀNG]" if item.min_alert > 0 and item.quantity <= item.min_alert else ""
         return f"{item.name}: {item.quantity} {item.unit}{alert_status}"
     finally:
         db.close()
@@ -42,12 +42,12 @@ def update_stock(item_name: str, quantity_change: float, reason: str = "manual_a
     try:
         item = db.query(InventoryItem).filter(InventoryItem.name == item_name).first()
         if not item:
-            return f"Item '{item_name}' not found."
+            return f"Không tìm thấy vật phẩm '{item_name}'."
         new_quantity = item.quantity + quantity_change
         if new_quantity < 0:
             return (
-                f"Error: Cannot reduce stock below zero. "
-                f"Current: {item.quantity} {item.unit}, requested change: {quantity_change}"
+                f"Lỗi: Không thể giảm kho xuống dưới 0. "
+                f"Hiện tại: {item.quantity} {item.unit}, lượng thay đổi yêu cầu: {quantity_change}"
             )
         item.quantity = new_quantity
         log = InventoryLog(
@@ -57,7 +57,7 @@ def update_stock(item_name: str, quantity_change: float, reason: str = "manual_a
         )
         db.add(log)
         db.commit()
-        return f"Updated {item.name}. New quantity: {item.quantity} {item.unit}"
+        return f"Đã cập nhật {item.name}. Số lượng mới: {item.quantity} {item.unit}"
     finally:
         db.close()
 
@@ -69,11 +69,11 @@ def list_inventory():
     try:
         items = db.query(InventoryItem).all()
         if not items:
-            return "Inventory is empty."
+            return "Kho hàng trống."
         lines = []
         for i in items:
-            alert = " [LOW]" if i.min_alert > 0 and i.quantity <= i.min_alert else ""
-            lines.append(f"- {i.name}: {i.quantity} {i.unit} (${i.unit_price}/{i.unit}){alert}")
+            alert = " [ÍT]" if i.min_alert > 0 and i.quantity <= i.min_alert else ""
+            lines.append(f"- {i.name}: {i.quantity} {i.unit} ({int(i.unit_price):,} VNĐ/{i.unit}){alert}")
         return "\n".join(lines)
     finally:
         db.close()
@@ -87,7 +87,7 @@ def update_inventory_item(item_name: str, new_name: str = "", new_unit: str = ""
     try:
         item = db.query(InventoryItem).filter(InventoryItem.name == item_name).first()
         if not item:
-            return f"Item '{item_name}' not found."
+            return f"Không tìm thấy vật phẩm '{item_name}'."
         if new_name:
             item.name = new_name
         if new_unit:
@@ -98,10 +98,10 @@ def update_inventory_item(item_name: str, new_name: str = "", new_unit: str = ""
             item.min_alert = new_min_alert
         db.commit()
         display_name = new_name if new_name else item_name
-        return f"Updated item '{display_name}' successfully."
+        return f"Đã cập nhật vật phẩm '{display_name}' thành công."
     except IntegrityError:
         db.rollback()
-        return f"Error: Item name '{new_name}' already exists."
+        return f"Lỗi: Tên vật phẩm '{new_name}' đã tồn tại."
     finally:
         db.close()
 
@@ -113,9 +113,9 @@ def delete_inventory_item(item_name: str):
     try:
         item = db.query(InventoryItem).filter(InventoryItem.name == item_name).first()
         if not item:
-            return f"Item '{item_name}' not found."
+            return f"Không tìm thấy vật phẩm '{item_name}'."
         db.delete(item)
         db.commit()
-        return f"Deleted '{item_name}' from inventory."
+        return f"Đã xóa '{item_name}' khỏi kho."
     finally:
         db.close()

@@ -16,7 +16,7 @@ def add_knowledge(topic: str, content: str):
         metadatas=[{"topic": topic}],
         ids=[topic]
     )
-    return f"Knowledge learned: [{topic}]"
+    return f"Đã ghi nhớ kiến thức: [{topic}]"
 
 @tool
 def query_knowledge(query: str):
@@ -26,5 +26,5 @@ def query_knowledge(query: str):
         n_results=3
     )
     if not results['documents'] or not results['documents'][0]:
-        return "No relevant knowledge found."
+        return "Không tìm thấy thông tin liên quan."
     return "\n\n".join(results['documents'][0])
