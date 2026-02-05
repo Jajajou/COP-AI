@@ -163,6 +163,16 @@ async def supervisor_node(state):
     # Cưỡng bức nghỉ 1.5 giây để tránh lỗi 429 RPM dồn dập
     await asyncio.sleep(1.5)
     
+    # --- LOGIC NGẮT MẠCH (Short-Circuit) ---
+    # Kiểm tra tin nhắn mới nhất của người dùng
+    last_message = state["messages"][-1].content.lower().strip()
+    stop_words = ["xong", "xong rồi", "cảm ơn", "thanks", "ok", "được rồi", "bye", "tạm biệt", "thế thôi"]
+    
+    # Nếu người dùng muốn kết thúc, cho FINISH ngay lập tức để tránh lặp
+    for word in stop_words:
+        if word in last_message:
+            return {"next": "FINISH"}
+    
     # Dùng model nhỏ để điều phối cho nhanh và tiết kiệm rate limit
     messages = state["messages"] + [
         ("system", "BẮT BUỘC: Chỉ trả về JSON theo định dạng: {\"next\": \"WorkerName\"}. Tuyệt đối không giải thích hoặc thêm văn bản thừa.")
